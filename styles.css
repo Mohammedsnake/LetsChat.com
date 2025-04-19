@@ -12,6 +12,7 @@
     --online-color: #2ecc71;
     --offline-color: #e74c3c;
     --typing-color: #3498db;
+    --wallpaper-opacity: 0.9;
 }
 
 /* Base Styles */
@@ -21,13 +22,16 @@ body {
     padding: 0;
     background: var(--light-bg);
     min-height: 100vh;
+    min-height: -webkit-fill-available;
     color: var(--dark-text);
     -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: contain;
 }
 
 .container {
     width: 100%;
     height: 100vh;
+    height: -webkit-fill-available;
     max-width: 100%;
     background: white;
     display: flex;
@@ -85,6 +89,11 @@ body {
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.auth-form button:active {
+    transform: scale(0.98);
 }
 
 .auth-switch {
@@ -98,19 +107,23 @@ body {
     cursor: pointer;
     text-decoration: underline;
 }
+
 .hidden {
     display: none !important;
-  }
+}
 
 /* Chat Container */
 .chat-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: -webkit-fill-available;
+    background-color: #121212;
 }
 
 .header {
     padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
     color: var(--light-text);
     display: flex;
@@ -156,19 +169,36 @@ body {
     color: var(--light-text);
     font-size: 1.2rem;
     cursor: pointer;
+    padding: 0.5rem;
 }
 
-.messages {
+/* Messages Area with Wallpaper */
+.chat-container .messages {
     flex: 1;
     padding: 1rem;
     overflow-y: auto;
-    background-color: var(--light-bg);
     -webkit-overflow-scrolling: touch;
-    /* Background image properties */
-    background-image: url(images/wallpaper.png);
+    position: relative;
+    background-color: var(--light-bg);
+    
+    /* Wallpaper with cross-browser support */
+    background-image: 
+        linear-gradient(
+            rgba(0, 0, 0, var(--wallpaper-opacity)), 
+            rgba(0, 0, 0, var(--wallpaper-opacity))
+        ),
+        url('images/wallpaper.png');
     background-size: cover;
     background-position: center;
-    background-attachment: fixed;
+    background-attachment: local;
+    background-repeat: no-repeat;
+}
+
+/* iOS-specific wallpaper fix */
+@supports (-webkit-touch-callout: none) {
+    .messages {
+        background-attachment: scroll !important;
+    }
 }
 
 .message {
@@ -181,17 +211,23 @@ body {
     position: relative;
     box-shadow: var(--shadow);
     animation: fadeIn 0.3s ease-out;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .message.sent {
-    background: linear-gradient(135deg, var(--message-sent) 0%, #8a2be2 100%);
+    background: linear-gradient(
+        135deg, 
+        rgba(106, 17, 203, 0.9) 0%, 
+        rgba(138, 43, 226, 0.9) 100%
+    );
     color: white;
     margin-left: auto;
     border-bottom-right-radius: 5px;
 }
 
 .message.received {
-    background-color: var(--message-received);
+    background-color: rgba(233, 236, 239, 0.9);
     color: var(--dark-text);
     margin-right: auto;
     border-bottom-left-radius: 5px;
@@ -226,10 +262,12 @@ body {
     overflow: hidden;
 }
 
-.attachment img, .attachment video {
+.attachment img, 
+.attachment video {
     max-width: 100%;
     max-height: 200px;
     display: block;
+    border-radius: 8px;
 }
 
 .attachment-file {
@@ -238,6 +276,8 @@ body {
     padding: 0.5rem;
     background: rgba(0, 0, 0, 0.05);
     border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
 }
 
 .attachment-file i {
@@ -253,8 +293,10 @@ body {
     height: 1rem;
 }
 
+/* Message Input Area */
 .message-input {
     padding: 0.8rem;
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
     background: white;
@@ -269,6 +311,8 @@ body {
     font-size: 1.2rem;
     padding: 0.5rem;
     cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
 }
 
 #message-input {
@@ -279,6 +323,7 @@ body {
     font-size: 1rem;
     margin: 0 0.5rem;
     background-color: var(--input-bg);
+    min-height: 44px;
 }
 
 #file-input {
@@ -290,8 +335,14 @@ body {
     color: var(--primary-color);
     font-size: 1.2rem;
     padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* Emoji Picker */
 .emoji-picker {
     position: absolute;
     bottom: 60px;
@@ -299,15 +350,14 @@ body {
     width: 300px;
     max-width: 90%;
     z-index: 100;
-    /* Add these for better visibility */
     border: 1px solid #ddd;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-  
-  .emoji-picker.hidden {
+}
+
+.emoji-picker.hidden {
     display: none;
-  }
+}
 
 /* Animations */
 @keyframes fadeIn {
@@ -336,6 +386,10 @@ body {
         height: 70vh;
         max-height: 600px;
     }
+    
+    .messages {
+        background-attachment: fixed;
+    }
 }
 
 @media (max-width: 400px) {
@@ -346,6 +400,7 @@ body {
     
     .message-input {
         padding: 0.6rem;
+        padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
     }
     
     #message-input {
@@ -353,16 +408,64 @@ body {
     }
 }
 
-/* Mobile-Specific Enhancements */
-@media (hover: none) {
-    button, input[type="text"] {
-        min-height: 44px;
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --light-bg: #121212;
+        --dark-text: #f5f5f5;
+        --message-received: #2d2d2d;
+        --input-bg: #1e1e1e;
+        --wallpaper-opacity: 0.7;
+    }
+    
+    .messages {
+        background-image: 
+            linear-gradient(
+                rgba(30, 30, 30, var(--wallpaper-opacity)), 
+                rgba(30, 30, 30, var(--wallpaper-opacity))
+            ),
+            url('images/wallpaper-dark.png');
+    }
+    
+    .message.sent {
+        background: linear-gradient(
+            135deg, 
+            rgba(106, 17, 203, 0.8) 0%, 
+            rgba(138, 43, 226, 0.8) 100%
+        );
+    }
+    
+    .message.received {
+        background-color: rgba(45, 45, 45, 0.8);
+    }
+    
+    .message-input {
+        background: #1e1e1e;
+        border-top-color: #333;
+    }
+    
+    #message-input {
+        background-color: #2d2d2d;
+        border-color: #444;
+        color: white;
     }
 }
 
-/* Prevent zoom on input focus for mobile */
-@media (max-width: 500px) {
-    input, textarea {
-        font-size: 16px !important;
+/* iPhone Notch/Padding Adjustments */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .messages {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* Performance Optimizations for Mobile */
+@media (hover: none) {
+    .message {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+    
+    body {
+        -webkit-tap-highlight-color: transparent;
     }
 }
