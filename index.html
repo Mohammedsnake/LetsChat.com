@@ -1003,31 +1003,22 @@
 
         // Display anniversary message
         function displayAnniversaryMessage() {
-    if (!anniversaryDate) return;
-    
-    const today = new Date();
-    const diffTime = Math.abs(today - anniversaryDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Add 875 to the calculated days (since we want to start counting from 876)
-    const totalDaysTogether = diffDays + 875;
-    
-    const anniversaryElement = document.createElement('div');
-    anniversaryElement.classList.add('anniversary-display');
-    anniversaryElement.innerHTML = `
-        <i class="fas fa-heart" style="color: var(--heart-color);"></i>
-        <strong>${totalDaysTogether} days together</strong>
-        <i class="fas fa-heart" style="color: var(--heart-color);"></i>
-        <div style="font-size: 0.8em; margin-top: 5px;">today, ${formatAnniversaryDate(anniversaryDate)}</div>
-    `;
-    
-    messagesContainer.appendChild(anniversaryElement);
-}
-
-function formatAnniversaryDate(date) {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return date.toLocaleDateString(undefined, options);
-}
+            if (!anniversaryDate) return;
+            
+            const today = new Date();
+            const diffTime = Math.abs(today - anniversaryDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            const anniversaryElement = document.createElement('div');
+            anniversaryElement.classList.add('anniversary-display');
+            anniversaryElement.innerHTML = `
+                <i class="fas fa-heart" style="color: var(--heart-color);"></i>
+                <strong>${diffDays} days together</strong>
+                <i class="fas fa-heart" style="color: var(--heart-color);"></i>
+            `;
+            
+            messagesContainer.appendChild(anniversaryElement);
+        }
 
         // Display a message
         function displayMessage(id, msg) {
