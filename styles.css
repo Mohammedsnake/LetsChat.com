@@ -176,7 +176,7 @@ body {
 .chat-container .messages {
     flex: 1;
     padding: 1rem;
-    overflow-y: auto;
+    overflow-y: scroll;
     -webkit-overflow-scrolling: touch;
     position: relative;
     background-color: var(--light-bg);
