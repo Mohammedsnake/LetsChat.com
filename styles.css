@@ -164,6 +164,11 @@ body {
     overflow-y: auto;
     background-color: var(--light-bg);
     -webkit-overflow-scrolling: touch;
+    /* Background image properties */
+    background-image: url(images/wallpaper.png);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
 }
 
 .message {
