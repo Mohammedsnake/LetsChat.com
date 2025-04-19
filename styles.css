@@ -452,7 +452,8 @@ body {
 /* iPhone Notch/Padding Adjustments */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
     .messages {
-        padding-bottom: env(safe-area-inset-bottom);
+        padding-bottom: 0;
+        height: calc(100% - 60px - 70px - env(safe-area-inset-bottom));
     }
 }
 
