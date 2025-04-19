@@ -197,7 +197,23 @@ body {
 /* iOS-specific wallpaper fix */
 @supports (-webkit-touch-callout: none) {
     .messages {
-        background-attachment: scroll !important;
+        flex: 1;
+        padding: 1rem;
+        overflow-y: scroll; /* Changed from auto to scroll */
+        -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
+        
+        /* iOS viewport fixes */
+        height: 100%;
+        max-height: 100vh;
+        max-height: -webkit-fill-available;
+        
+        /* Wallpaper styling */
+        background-image: 
+            linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)),
+            url('images/wallpaper.png');
+        background-size: cover;
+        background-position: center;
+        background-attachment: scroll; /* Changed from fixed */
     }
 }
 
