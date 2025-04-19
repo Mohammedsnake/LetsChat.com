@@ -174,61 +174,31 @@ body {
 
 /* Messages Area with Wallpaper */
 .chat-container .messages {
-        flex: 1;
-        padding: 1rem;
-        overflow-y: scroll;
-        -webkit-overflow-scrolling: touch;
-        transform: translateZ(0); /* Hardware acceleration */
-        position: relative;
-        background-color: var(--light-bg);
-        background-image: 
-            linear-gradient(rgba(0, 0, 0, var(--wallpaper-opacity)), rgba(0, 0, 0, var(--wallpaper-opacity))),
-            url('images/wallpaper.png');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: scroll;
-        
-        /* iOS safe area */
-        padding-bottom: env(safe-area-inset-bottom);
-        height: calc(100% - 60px - env(safe-area-inset-bottom));
-    }
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    background-color: var(--light-bg);
     
+    /* Wallpaper with cross-browser support */
+    background-image: 
+        linear-gradient(
+            rgba(0, 0, 0, var(--wallpaper-opacity)), 
+            rgba(0, 0, 0, var(--wallpaper-opacity))
+        ),
+        url('images/wallpaper.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: local;
+    background-repeat: no-repeat;
+}
+
 /* iOS-specific wallpaper fix */
 @supports (-webkit-touch-callout: none) {
     .messages {
-        flex: 1;
-        padding: 1rem;
-        overflow-y: scroll; /* Changed from auto to scroll */
-        -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
-        
-        /* iOS viewport fixes */
-        height: 100%;
-        max-height: 100vh;
-        max-height: -webkit-fill-available;
-        
-        /* Wallpaper styling */
-        background-image: 
-            linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)),
-            url('images/wallpaper.png');
-        background-size: cover;
-        background-position: center;
-        background-attachment: scroll; /* Changed from fixed */
+        background-attachment: scroll !important;
     }
-    /* iPhone notch and home indicator area padding */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .messages {
-        padding-bottom: env(safe-area-inset-bottom);
-    }
-}
-
-/* Fix for Safari's elastic scrolling */
-html, body {
-    overscroll-behavior-y: contain;
-    height: 100%;
-    width: 100%;
-    position: fixed; /* Prevents whole-page scrolling */
-}
 }
 
 .message {

@@ -194,16 +194,8 @@ function loadMessages() {
         }, 100);
     });
 }
-function scrollToBottom() {
-    const messages = document.querySelector('.messages');
-    messages.scrollTop = messages.scrollHeight;
-}
 
-// Call this whenever new messages arrive
-scrollToBottom();
 
-// Handle keyboard events
-window.addEventListener('resize', scrollToBottom);
 
 // Display a message
 function displayMessage(id, msg) {
