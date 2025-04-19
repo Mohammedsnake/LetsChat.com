@@ -1053,47 +1053,40 @@
             
             if (msg.type === 'text') {
                 contentElement.textContent = msg.text;
-            } else if (msg.type === 'image') {
-                const imgContainer = document.createElement('div');
-                imgContainer.style.position = 'relative';
-                
-                const img = document.createElement('img');
-                img.src = msg.url;
-                img.alt = 'Sent image';
-                img.classList.add('attachment');
-                
-                // Add download button for images
-                const downloadBtn = document.createElement('a');
-                downloadBtn.href = msg.url;
-                downloadBtn.download = msg.fileName || 'couple-image';
-                downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
-                downloadBtn.style.position = 'absolute';
-                downloadBtn.style.top = '10px';
-                downloadBtn.style.right = '10px';
-                downloadBtn.style.background = 'rgba(255, 255, 255, 0.8)';
-                downloadBtn.style.padding = '5px';
-                downloadBtn.style.borderRadius = '50%';
-                downloadBtn.style.color = 'var(--primary-color)';
-                
-                imgContainer.appendChild(img);
-                imgContainer.appendChild(downloadBtn);
-                contentElement.appendChild(imgContainer);
-            } else if (msg.type === 'file') {
-                const fileLink = document.createElement('a');
-                fileLink.href = msg.url;
-                fileLink.target = '_blank';
-                fileLink.classList.add('attachment-file');
-                
-                const icon = document.createElement('i');
-                icon.className = getFileIcon(msg.fileType);
-                
-                const fileName = document.createElement('span');
-                fileName.textContent = msg.fileName || 'Download file';
-                
-                fileLink.appendChild(icon);
-                fileLink.appendChild(fileName);
-                contentElement.appendChild(fileLink);
-            }
+            } else  if (msg.type === 'image') {
+        const img = document.createElement('img');
+        img.src = msg.data; // Use the Base64 data directly
+        img.alt = 'Shared image';
+        img.classList.add('attachment');
+        
+        // Add click to view larger
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', () => {
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            modal.style.display = 'flex';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            modal.style.zIndex = '1000';
+            
+            const fullSizeImg = document.createElement('img');
+            fullSizeImg.src = msg.data;
+            fullSizeImg.style.maxWidth = '90%';
+            fullSizeImg.style.maxHeight = '90%';
+            
+            modal.appendChild(fullSizeImg);
+            modal.addEventListener('click', () => modal.remove());
+            
+            document.body.appendChild(modal);
+        });
+        
+        contentElement.appendChild(img);
+    }
             
             // Add heart reaction button
             const heartReaction = document.createElement('div');
@@ -1228,93 +1221,61 @@
         // Handle file upload
         fileBtn.addEventListener('click', () => fileInput.click());
         
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file || !currentUser) return;
-            
-            try {
-                // Show loading state
-                fileBtn.disabled = true;
-                fileBtn.innerHTML = '<div class="loading"></div>';
-                
-                // Upload file to Firebase Storage
-                const storageRef = storage.ref();
-                const fileRef = storageRef.child(`couple-files/${currentUser.uid}/${Date.now()}_${file.name}`);
-                const uploadTask = fileRef.put(file);
-                
-                uploadTask.on('state_changed', 
-                    (snapshot) => {
-                        // Progress tracking could be added here
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        console.log('Upload is ' + progress + '% done');
-                    }, 
-                    (error) => {
-                        showError('File upload failed');
-                        console.error('Upload error:', error);
-                    },
-                    async () => {
-                        // Get download URL
-                        const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                        
-                        // Create message
-                        const timestamp = Date.now();
-                        const message = {
-                            senderId: currentUser.uid,
-                            senderName: currentUser.name,
-                            timestamp: timestamp,
-                            type: file.type.startsWith('image') ? 'image' : 'file',
-                            fileName: file.name,
-                            fileType: file.type,
-                            url: downloadURL,
-                            size: file.size
-                        };
-                        
-                        await database.ref('messages').push(message);
-                        fileInput.value = '';
-                        
-                        scrollToBottom();
-                    }
-                );
-            } catch (error) {
-                showError('Error uploading file');
-                console.error('File upload error:', error);
-            } finally {
-                fileBtn.disabled = false;
-                fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
-            }
-        });
+        // Update the file input handler
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file || !currentUser) return;
 
-        // Change background image
-        async function changeBackground(imageFile) {
-            if (!imageFile || !currentUser) return;
+    // Limit to image files (since we're using Base64)
+    if (!file.type.startsWith('image/')) {
+        showError('Please select an image file');
+        return;
+    }
+
+    // Limit file size (Realtime Database has size limits)
+    if (file.size > 1 * 1024 * 1024) { // 1MB limit
+        showError('Image must be smaller than 1MB');
+        return;
+    }
+
+    fileBtn.disabled = true;
+    fileBtn.innerHTML = '<div class="loading"></div>';
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            const base64String = event.target.result;
             
-            try {
-                // Upload image to Firebase Storage
-                const storageRef = storage.ref();
-                const bgRef = storageRef.child(`couple-backgrounds/${currentUser.uid}/background`);
-                const uploadTask = bgRef.put(imageFile);
-                
-                uploadTask.on('state_changed',
-                    null,
-                    (error) => {
-                        showError('Background upload failed');
-                        console.error('Upload error:', error);
-                    },
-                    async () => {
-                        // Get download URL
-                        const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                        
-                        // Update background
-                        chatBackground.style.backgroundImage = `url(${downloadURL})`;
-                        customBackground = downloadURL;
-                        localStorage.setItem('coupleBackground', downloadURL);
-                    }
-                );
-            } catch (error) {
-                showError('Error changing background');
-                console.error('Background change error:', error);
-            }
+            const timestamp = Date.now();
+            const message = {
+                senderId: currentUser.uid,
+                senderName: currentUser.name,
+                timestamp: timestamp,
+                type: 'image',
+                fileName: file.name,
+                fileType: file.type,
+                data: base64String, // Store Base64 encoded image
+                size: file.size
+            };
+
+            await database.ref('messages').push(message);
+            fileInput.value = '';
+            scrollToBottom();
+        } catch (error) {
+            showError('Error sending image');
+            console.error(error);
+        } finally {
+            fileBtn.disabled = false;
+            fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
         }
+    };
+    reader.onerror = () => {
+        showError('Error reading file');
+        fileBtn.disabled = false;
+        fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
+    };
+    reader.readAsDataURL(file);
+});
 
         // Typing indicators
         messageInput.addEventListener('input', () => {
