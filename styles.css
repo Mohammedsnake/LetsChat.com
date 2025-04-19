@@ -215,6 +215,20 @@ body {
         background-position: center;
         background-attachment: scroll; /* Changed from fixed */
     }
+    /* iPhone notch and home indicator area padding */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .messages {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* Fix for Safari's elastic scrolling */
+html, body {
+    overscroll-behavior-y: contain;
+    height: 100%;
+    width: 100%;
+    position: fixed; /* Prevents whole-page scrolling */
+}
 }
 
 .message {
