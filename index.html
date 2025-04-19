@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Enhanced Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <!-- Emoji Picker -->
+    <link href="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Auth Container -->
+        <div class="auth-container" id="auth-container">
+            <div class="auth-form" id="login-form">
+                <h1>Welcome Back</h1>
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-password" placeholder="Password">
+                <button id="login-btn">Login</button>
+                <p class="auth-switch">New user? <span id="show-register">Register</span></p>
+            </div>
+            
+            <div class="auth-form hidden" id="register-form">
+                <h1>Create Account</h1>
+                <input type="text" id="register-name" placeholder="Name">
+                <input type="email" id="register-email" placeholder="Email">
+                <input type="password" id="register-password" placeholder="Password">
+                <button id="register-btn">Register</button>
+                <p class="auth-switch">Already have an account? <span id="show-login">Login</span></p>
+            </div>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container hidden" id="chat-container">
+            <div class="header">
+                <div class="header-info">
+                    <h2>Chat</h2>
+                    <div class="user-status">
+                        <span id="current-user"></span>
+                        <span class="status-dot" id="user-status"></span>
+                    </div>
+                </div>
+                <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+            
+            <div class="messages" id="messages"></div>
+            
+            <div class="typing-indicator" id="typing-indicator"></div>
+            
+            <div class="message-input">
+                <button id="emoji-btn"><i class="far fa-smile"></i></button>
+                <input type="text" id="message-input" placeholder="Type your message...">
+                <button id="send-btn"><i class="fas fa-paper-plane"></i></button>
+                <input type="file" id="file-input" accept="image/*, video/*, .pdf, .doc, .docx">
+                <label for="file-input" class="file-label"><i class="fas fa-paperclip"></i></label>
+                
+                <emoji-picker class="emoji-picker hidden"></emoji-picker>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
