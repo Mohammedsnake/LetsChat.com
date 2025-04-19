@@ -174,25 +174,23 @@ body {
 
 /* Messages Area with Wallpaper */
 .chat-container .messages {
-    flex: 1;
-    padding: 1rem;
-    overflow-y: scroll;
-    -webkit-overflow-scrolling: touch;
-    position: relative;
-    background-color: var(--light-bg);
-    
-    /* Wallpaper with cross-browser support */
-    background-image: 
-        linear-gradient(
-            rgba(0, 0, 0, var(--wallpaper-opacity)), 
-            rgba(0, 0, 0, var(--wallpaper-opacity))
-        ),
-        url('images/wallpaper.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: local;
-    background-repeat: no-repeat;
-}
+        flex: 1;
+        padding: 1rem;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        transform: translateZ(0);
+        background-color: var(--light-bg);
+        background-image: 
+            linear-gradient(rgba(0, 0, 0, var(--wallpaper-opacity)), 
+            rgba(0, 0, 0, var(--wallpaper-opacity))),
+            url('images/wallpaper.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: scroll;
+        padding-bottom: env(safe-area-inset-bottom);
+        height: calc(100vh - 60px - env(safe-area-inset-bottom));
+    }
 
 /* iOS-specific wallpaper fix */
 @supports (-webkit-touch-callout: none) {
