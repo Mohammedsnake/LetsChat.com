@@ -887,6 +887,65 @@
             gap: 10px;
         }
 
+        /* Partner request modal */
+        .partner-request-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .partner-request-modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .partner-request-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(93, 16, 73, 0.2);
+            transform: translateY(20px);
+            transition: transform 0.3s;
+        }
+
+        .partner-request-modal.active .partner-request-content {
+            transform: translateY(0);
+        }
+
+        body.dark-mode .partner-request-content {
+            background: var(--dark-bg-color);
+        }
+
+        .partner-request-title {
+            font-family: 'Playfair Display', serif;
+            color: var(--dark-color);
+            margin-bottom: 20px;
+        }
+
+        body.dark-mode .partner-request-title {
+            color: var(--dark-text-color);
+        }
+
+        .partner-request-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 600px) {
             .container {
@@ -964,7 +1023,7 @@
                 </div>
                 <div class="form-group">
                     <label for="partner-email">Partner's Email</label>
-                    <input type="email" id="partner-email" placeholder="Your partner's email (optional)" autocomplete="email">
+                    <input type="email" id="partner-email" placeholder="Your partner's email (required)" autocomplete="email" required>
                 </div>
                 <button id="register-btn" class="btn">Start Our Journey</button>
                 <button id="show-login" class="btn-secondary">Already have our space?</button>
@@ -1021,6 +1080,18 @@
             <div class="modal-footer">
                 <button class="btn-secondary" id="cancel-edit">Cancel</button>
                 <button class="btn" id="save-edit">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Partner Request Modal -->
+    <div class="partner-request-modal" id="partner-request-modal">
+        <div class="partner-request-content">
+            <h3 class="partner-request-title">Partner Request</h3>
+            <p id="partner-request-message"></p>
+            <div class="partner-request-buttons">
+                <button class="btn" id="accept-partner-btn">Accept</button>
+                <button class="btn-secondary" id="decline-partner-btn">Decline</button>
             </div>
         </div>
     </div>
@@ -1100,6 +1171,10 @@
         const cancelEdit = document.getElementById('cancel-edit');
         const saveEdit = document.getElementById('save-edit');
         const toastContainer = document.getElementById('toast-container');
+        const partnerRequestModal = document.getElementById('partner-request-modal');
+        const partnerRequestMessage = document.getElementById('partner-request-message');
+        const acceptPartnerBtn = document.getElementById('accept-partner-btn');
+        const declinePartnerBtn = document.getElementById('decline-partner-btn');
 
         chatContainer.classList.add('hidden');
         authContainer.classList.remove('hidden');
@@ -1114,6 +1189,9 @@
         let customBackground = null;
         let darkMode = localStorage.getItem('darkMode') === 'true';
         let messageBeingEdited = null;
+        let chatPairId = null;
+        let partnerRequestListener = null;
+        let autoDeclineTimer = null;
 
         // Initialize the app
         initApp();
@@ -1208,16 +1286,14 @@
                 authContainer.classList.add('hidden');
                 chatContainer.classList.remove('hidden');
                 
-                // Try to load partner info
+                // Load partner info and chat pair
                 await loadPartnerInfo();
                 
                 // Initialize chat features
                 await setUserOnline();
                 loadMessages();
                 setupPresenceListener();
-                
-                // Scroll to bottom when messages load
-                setTimeout(scrollToBottom, 300);
+                setupPartnerRequestListener();
                 
                 // Create floating hearts occasionally
                 setInterval(createFloatingHeart, 3000);
@@ -1225,40 +1301,209 @@
                 console.log('User logged out');
                 currentUser = null;
                 partnerUser = null;
+                chatPairId = null;
                 authContainer.classList.remove('hidden');
                 chatContainer.classList.add('hidden');
                 messagesContainer.innerHTML = '';
+                
+                // Clean up listeners and timers
+                if (partnerRequestListener) {
+                    database.ref(`partnerRequests/${currentUser?.uid}`).off('value', partnerRequestListener);
+                    partnerRequestListener = null;
+                }
+                if (autoDeclineTimer) {
+                    clearTimeout(autoDeclineTimer);
+                    autoDeclineTimer = null;
+                }
             }
         });
 
-        // Load partner information
         async function loadPartnerInfo() {
             try {
-                const partnerRef = database.ref(`users/${currentUser.uid}/partner`);
-                const snapshot = await partnerRef.once('value');
-                const partnerEmail = snapshot.val();
+                const userRef = database.ref(`users/${currentUser.uid}`);
+                const snapshot = await userRef.once('value');
+                const userData = snapshot.val();
                 
-                if (partnerEmail) {
+                if (userData && userData.partner) {
                     // Find partner by email
                     const usersRef = database.ref('users');
                     const usersSnapshot = await usersRef.once('value');
                     const users = usersSnapshot.val() || {};
                     
-                    for (const [uid, userData] of Object.entries(users)) {
-                        if (userData.email === partnerEmail) {
+                    for (const [uid, partnerData] of Object.entries(users)) {
+                        if (partnerData.email === userData.partner) {
                             partnerUser = {
                                 uid: uid,
-                                name: userData.name,
-                                email: userData.email
+                                name: partnerData.name,
+                                email: partnerData.email
                             };
-                            console.log('Partner found:', partnerUser);
+                            
+                            // Generate consistent chat pair ID (sorted)
+                            const uids = [currentUser.uid, partnerUser.uid].sort();
+                            chatPairId = `${uids[0]}_${uids[1]}`;
+                            
+                            // Check if we have an anniversary date
+                            if (userData.anniversaryDate) {
+                                anniversaryDate = new Date(userData.anniversaryDate);
+                                localStorage.setItem('anniversaryDate', anniversaryDate.toISOString());
+                            }
+                            
                             break;
                         }
                     }
+                    
+                    if (!partnerUser) {
+                        showToast('Partner not found. They may not have registered yet.', 'error');
+                    } else {
+                        // Initialize typing listener with the new pair
+                        setupTypingListener();
+                    }
+                } else {
+                    showToast('No partner linked to your account', 'error');
                 }
             } catch (error) {
                 console.error('Error loading partner info:', error);
                 showToast('Error loading partner information', 'error');
+            }
+        }
+
+        // Setup listener for partner requests
+        function setupPartnerRequestListener() {
+            if (!currentUser) return;
+            
+            // Remove any existing listener to avoid duplicates
+            if (partnerRequestListener) {
+                database.ref(`partnerRequests/${currentUser.uid}`).off('value', partnerRequestListener);
+            }
+
+            partnerRequestListener = database.ref(`partnerRequests/${currentUser.uid}`)
+                .orderByChild('status')
+                .equalTo('pending')
+                .on('value', snapshot => {
+                    if (snapshot.exists()) {
+                        const requests = snapshot.val();
+                        const requestId = Object.keys(requests)[0];
+                        const request = requests[requestId];
+                        
+                        // Only show if not seen and status is pending
+                        if (request.status === 'pending' && !request.seen) {
+                            showPartnerRequest(
+                                request.fromEmail,
+                                request.fromName,
+                                request.fromUid,
+                                requestId
+                            );
+                        }
+                    }
+                });
+        }
+
+        // Show partner request modal
+        function showPartnerRequest(fromEmail, fromName, fromUid, requestId) {
+            partnerRequestMessage.textContent = `${fromName} (${fromEmail}) wants to connect with you as partners.`;
+            
+            // Store the request ID and partner info
+            acceptPartnerBtn.dataset.requestId = requestId;
+            acceptPartnerBtn.dataset.uid = fromUid;
+            declinePartnerBtn.dataset.requestId = requestId;
+            
+            // Set auto-decline timer (1 minute)
+            autoDeclineTimer = setTimeout(() => {
+                if (partnerRequestModal.classList.contains('active')) {
+                    declinePartnerRequest(requestId);
+                }
+            }, 60000);
+            
+            // Show modal
+            partnerRequestModal.classList.add('active');
+        }
+
+        // Handle partner request acceptance
+        async function acceptPartnerRequest(partnerUid, partnerEmail, partnerName, requestId) {
+            try {
+                // Clear auto-decline timer
+                if (autoDeclineTimer) {
+                    clearTimeout(autoDeclineTimer);
+                    autoDeclineTimer = null;
+                }
+                
+                // Generate a unique pair ID (alphabetically sorted to ensure consistency)
+                const pairId = [currentUser.uid, partnerUid].sort().join('_');
+                
+                // Update both users' records and create the chat pair
+                const updates = {};
+                updates[`users/${currentUser.uid}/partner`] = partnerEmail;
+                updates[`users/${partnerUid}/partner`] = currentUser.email;
+                
+                // Set anniversary date to today
+                const now = new Date();
+                updates[`users/${currentUser.uid}/anniversaryDate`] = now.toISOString();
+                updates[`users/${partnerUid}/anniversaryDate`] = now.toISOString();
+                
+                // Update the partner request status
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/status`] = 'accepted';
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/seen`] = true;
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/acceptedAt`] = Date.now();
+                
+                // Create the chat pair with users list
+                updates[`userPairs/${pairId}/users/${currentUser.uid}`] = true;
+                updates[`userPairs/${pairId}/users/${partnerUid}`] = true;
+                
+                // Send welcome message
+                const welcomeMessage = {
+                    text: `We're now connected! This is the start of our private chat.`,
+                    senderId: 'system',
+                    senderName: 'System',
+                    timestamp: Date.now(),
+                    type: 'text'
+                };
+                updates[`userPairs/${pairId}/messages/${Date.now()}`] = welcomeMessage;
+                
+                await database.ref().update(updates);
+                
+                // Update local state
+                partnerUser = {
+                    uid: partnerUid,
+                    name: partnerName,
+                    email: partnerEmail
+                };
+                chatPairId = pairId;
+                anniversaryDate = now;
+                localStorage.setItem('anniversaryDate', now.toISOString());
+                
+                // Hide modal
+                partnerRequestModal.classList.remove('active');
+                
+                // Reload messages with the new pair
+                loadMessages();
+                
+                showToast(`You're now connected with ${partnerName}!`, 'success');
+            } catch (error) {
+                console.error('Error accepting partner request:', error);
+                showToast('Error accepting partner request', 'error');
+            }
+        }
+
+        // Handle partner request decline
+        async function declinePartnerRequest(requestId) {
+            try {
+                // Clear auto-decline timer
+                if (autoDeclineTimer) {
+                    clearTimeout(autoDeclineTimer);
+                    autoDeclineTimer = null;
+                }
+                
+                const updates = {};
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/status`] = 'declined';
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/seen`] = true;
+                updates[`partnerRequests/${currentUser.uid}/${requestId}/declinedAt`] = Date.now();
+                
+                await database.ref().update(updates);
+                partnerRequestModal.classList.remove('active');
+                showToast('Partner request declined', 'info');
+            } catch (error) {
+                console.error('Error declining request:', error);
+                showToast('Error declining request', 'error');
             }
         }
 
@@ -1312,7 +1557,7 @@
             const password = registerPassword.value.trim();
             const partner = partnerEmail.value.trim();
             
-            if (!name || !email || !password) {
+            if (!name || !email || !password || !partner) {
                 showToast('Please fill all required fields', 'error');
                 return;
             }
@@ -1333,32 +1578,58 @@
                 });
                 
                 // Save user data
-                await database.ref(`users/${userCredential.user.uid}`).set({
+                const userData = {
                     name: name,
                     email: email,
                     createdAt: firebase.database.ServerValue.TIMESTAMP
-                });
+                };
                 
-                // If partner email was provided, save it
+                // If partner email was provided, create a partner request
                 if (partner) {
-                    await database.ref(`users/${userCredential.user.uid}/partner`).set(partner);
+                    // First check if partner exists
+                    const usersRef = database.ref('users');
+                    const usersSnapshot = await usersRef.once('value');
+                    const users = usersSnapshot.val() || {};
                     
-                    // Set anniversary date to today
-                    anniversaryDate = new Date();
-                    localStorage.setItem('anniversaryDate', anniversaryDate.toISOString());
+                    let partnerExists = false;
+                    let partnerUid = null;
+                    let partnerName = null;
                     
-                    // Show anniversary message
-                    displayAnniversaryMessage();
+                    for (const [uid, user] of Object.entries(users)) {
+                        if (user.email === partner) {
+                            partnerExists = true;
+                            partnerUid = uid;
+                            partnerName = user.name;
+                            break;
+                        }
+                    }
+                    
+                    if (partnerExists) {
+                        // Create partner request
+                        await database.ref(`partnerRequests/${partnerUid}`).set({
+                            fromUid: userCredential.user.uid,
+                            fromEmail: email,
+                            fromName: name,
+                            status: 'pending',
+                            createdAt: Date.now()
+                        });
+                        
+                        showToast(`Partner request sent to ${partnerName}!`, 'success');
+                    } else {
+                        // Save partner email for later
+                        userData.partnerRequest = partner;
+                        showToast('Partner not found. They can connect with you after registering.', 'info');
+                    }
                 }
+                
+                // Save user data
+                await database.ref(`users/${userCredential.user.uid}`).set(userData);
                 
                 // Reset form
                 registerName.value = '';
                 registerEmail.value = '';
                 registerPassword.value = '';
                 partnerEmail.value = '';
-                
-                // Show success message
-                showToast('Account created successfully!', 'success');
                 
                 // Switch to login form
                 registerForm.classList.add('hidden');
@@ -1428,17 +1699,21 @@
 
         // Setup presence listener
         function setupPresenceListener() {
+            if (!currentUser || !partnerUser) return;
+            
             database.ref('status').on('value', snapshot => {
                 const statuses = snapshot.val() || {};
                 let onlineUsers = 0;
                 
-                for (const [uid, status] of Object.entries(statuses)) {
-                    if (status.status === 'online') {
-                        onlineUsers++;
-                        if (uid === currentUser.uid) {
-                            userStatus.className = 'status-dot online';
-                        }
-                    }
+                // Check if partner is online
+                if (statuses[partnerUser.uid] && statuses[partnerUser.uid].status === 'online') {
+                    onlineUsers++;
+                }
+                
+                // Check if current user is online
+                if (statuses[currentUser.uid] && statuses[currentUser.uid].status === 'online') {
+                    onlineUsers++;
+                    userStatus.className = 'status-dot online';
                 }
                 
                 // Update online users display
@@ -1448,7 +1723,12 @@
 
         // Load messages with date separators
         function loadMessages() {
-            database.ref('messages').orderByChild('timestamp').limitToLast(100).on('value', snapshot => {
+            if (!chatPairId) {
+                messagesContainer.innerHTML = '<div class="anniversary-display">Connect with your partner to start chatting</div>';
+                return;
+            }
+            
+            database.ref(`userPairs/${chatPairId}/messages`).orderByChild('timestamp').limitToLast(100).on('value', snapshot => {
                 messagesContainer.innerHTML = '';
                 const messages = snapshot.val() || {};
                 
@@ -1661,7 +1941,7 @@
 
         // Save edited message
         async function saveEditedMessage() {
-            if (!messageBeingEdited) return;
+            if (!messageBeingEdited || !chatPairId) return;
             
             const newText = editMessageInput.value.trim();
             if (!newText) {
@@ -1673,7 +1953,7 @@
                 saveEdit.disabled = true;
                 saveEdit.innerHTML = '<div class="loading"></div>';
                 
-                await database.ref(`messages/${messageBeingEdited}`).update({
+                await database.ref(`userPairs/${chatPairId}/messages/${messageBeingEdited}`).update({
                     text: newText,
                     edited: true,
                     editedAt: Date.now()
@@ -1692,10 +1972,10 @@
 
         // Delete message
         async function deleteMessage(id) {
-            if (!confirm('Are you sure you want to delete this message?')) return;
+            if (!chatPairId || !confirm('Are you sure you want to delete this message?')) return;
             
             try {
-                await database.ref(`messages/${id}`).remove();
+                await database.ref(`userPairs/${chatPairId}/messages/${id}`).remove();
                 showToast('Message deleted', 'success');
             } catch (error) {
                 console.error('Error deleting message:', error);
@@ -1708,12 +1988,35 @@
         cancelEdit.addEventListener('click', closeEditModal);
         saveEdit.addEventListener('click', saveEditedMessage);
 
+        // Partner request button handlers
+        acceptPartnerBtn.addEventListener('click', async () => {
+            const partnerUid = acceptPartnerBtn.dataset.uid;
+            const requestId = acceptPartnerBtn.dataset.requestId;
+            
+            const [emailSnapshot, nameSnapshot] = await Promise.all([
+                database.ref(`users/${partnerUid}/email`).once('value'),
+                database.ref(`users/${partnerUid}/name`).once('value')
+            ]);
+            
+            await acceptPartnerRequest(
+                partnerUid,
+                emailSnapshot.val(),
+                nameSnapshot.val(),
+                requestId
+            );
+        });
+
+        declinePartnerBtn.addEventListener('click', () => {
+            const requestId = declinePartnerBtn.dataset.requestId;
+            declinePartnerRequest(requestId);
+        });
+
         // Toggle reaction on a message
         async function toggleReaction(messageId, message) {
-            if (!currentUser || !messageId) return;
+            if (!currentUser || !messageId || !chatPairId) return;
             
             try {
-                const messageRef = database.ref(`messages/${messageId}`);
+                const messageRef = database.ref(`userPairs/${chatPairId}/messages/${messageId}`);
                 const reactions = message.reactions || {};
                 
                 if (reactions[currentUser.uid]) {
@@ -1789,7 +2092,7 @@
         async function sendMessage() {
             const messageText = messageInput.value.trim();
             
-            if (!messageText || !currentUser) return;
+            if (!messageText || !currentUser || !chatPairId) return;
             
             try {
                 sendBtn.disabled = true;
@@ -1804,12 +2107,10 @@
                     type: 'text'
                 };
                 
-                await database.ref('messages').push(message);
+                await database.ref(`userPairs/${chatPairId}/messages`).push(message);
+                
                 messageInput.value = '';
-                
-                // Reset typing status
                 setTyping(false);
-                
                 scrollToBottom();
             } catch (error) {
                 console.error('Error sending message:', error);
@@ -1824,86 +2125,86 @@
         fileBtn.addEventListener('click', () => fileInput.click());
         
         fileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file || !currentUser) return;
+            const file = e.target.files[0];
+            if (!file || !currentUser || !chatPairId) return;
 
-    // Limit to image files
-    if (!file.type.startsWith('image/')) {
-        showToast('Please select an image file', 'error');
-        return;
-    }
+            // Limit to image files
+            if (!file.type.startsWith('image/')) {
+                showToast('Please select an image file', 'error');
+                return;
+            }
 
-    // Limit file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-        showToast('Image must be smaller than 5MB', 'error');
-        return;
-    }
+            // Limit file size (5MB limit)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('Image must be smaller than 5MB', 'error');
+                return;
+            }
 
-    fileBtn.disabled = true;
-    fileBtn.innerHTML = '<div class="loading"></div>';
+            fileBtn.disabled = true;
+            fileBtn.innerHTML = '<div class="loading"></div>';
 
-    try {
-        // Convert image to Base64 for immediate display
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const base64String = event.target.result;
-            
-            const timestamp = Date.now();
-            const message = {
-                senderId: currentUser.uid,
-                senderName: currentUser.name,
-                timestamp: timestamp,
-                type: 'image',
-                fileName: file.name,
-                fileType: file.type,
-                data: base64String,
-                size: file.size
-            };
-
-            // Upload to Firebase Storage for permanent storage
-            const storageRef = storage.ref(`images/${currentUser.uid}/${timestamp}_${file.name}`);
-            const uploadTask = storageRef.putString(base64String, 'data_url');
-
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    // Progress monitoring could be added here
-                },
-                (error) => {
-                    console.error('Upload error:', error);
-                    showToast('Error uploading image', 'error');
-                },
-                async () => {
-                    // Get download URL after upload completes
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+            try {
+                // Convert image to Base64 for immediate display
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const base64String = event.target.result;
                     
-                    // Update message with permanent URL
-                    await database.ref('messages').push({
-                        ...message,
-                        data: downloadURL
-                    });
-                    
-                    showToast('Image sent successfully', 'success');
-                }
-            );
+                    const timestamp = Date.now();
+                    const message = {
+                        senderId: currentUser.uid,
+                        senderName: currentUser.name,
+                        timestamp: timestamp,
+                        type: 'image',
+                        fileName: file.name,
+                        fileType: file.type,
+                        data: base64String,
+                        size: file.size
+                    };
 
-            // Immediately show the image using Base64 while uploading
-            await database.ref('messages').push(message);
-            fileInput.value = '';
-            scrollToBottom();
-        };
-        reader.onerror = () => {
-            showToast('Error reading file', 'error');
-            fileBtn.disabled = false;
-            fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
-        };
-        reader.readAsDataURL(file);
-    } catch (error) {
-        console.error('Error sending image:', error);
-        showToast('Error sending image', 'error');
-        fileBtn.disabled = false;
-        fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
-    }
-});
+                    // Upload to Firebase Storage for permanent storage
+                    const storageRef = storage.ref(`images/${chatPairId}/${timestamp}_${file.name}`);
+                    const uploadTask = storageRef.putString(base64String, 'data_url');
+
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            // Progress monitoring could be added here
+                        },
+                        (error) => {
+                            console.error('Upload error:', error);
+                            showToast('Error uploading image', 'error');
+                        },
+                        async () => {
+                            // Get download URL after upload completes
+                            const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                            
+                            // Update message with permanent URL
+                            await database.ref(`userPairs/${chatPairId}/messages`).push({
+                                ...message,
+                                data: downloadURL
+                            });
+                            
+                            showToast('Image sent successfully', 'success');
+                        }
+                    );
+
+                    // Immediately show the image using Base64 while uploading
+                    await database.ref(`userPairs/${chatPairId}/messages`).push(message);
+                    fileInput.value = '';
+                    scrollToBottom();
+                };
+                reader.onerror = () => {
+                    showToast('Error reading file', 'error');
+                    fileBtn.disabled = false;
+                    fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error sending image:', error);
+                showToast('Error sending image', 'error');
+                fileBtn.disabled = false;
+                fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
+            }
+        });
 
         // Typing indicators
         messageInput.addEventListener('input', () => {
@@ -1922,23 +2223,26 @@
         });
 
         function setTyping(typing) {
-            if (typing === isTyping || !currentUser) return;
+            if (typing === isTyping || !currentUser || !chatPairId) return;
             
             isTyping = typing;
-            database.ref(`typing/${currentUser.uid}`).set(typing ? currentUser.name : null);
+            database.ref(`userPairs/${chatPairId}/typing/${currentUser.uid}`).set(typing ? currentUser.name : null);
         }
 
-        // Listen for typing indicators
-        database.ref('typing').on('value', snapshot => {
-            const typingData = snapshot.val() || {};
-            const typingUsers = Object.values(typingData).filter(Boolean);
+        function setupTypingListener() {
+            if (!chatPairId) return;
             
-            if (typingUsers.length > 0) {
-                typingIndicator.textContent = `${typingUsers.join(', ')} ${typingUsers.length > 1 ? 'are' : 'is'} typing...`;
-            } else {
-                typingIndicator.textContent = '';
-            }
-        });
+            database.ref(`userPairs/${chatPairId}/typing`).on('value', snapshot => {
+                const typingData = snapshot.val() || {};
+                const typingUsers = Object.values(typingData).filter(Boolean);
+                
+                if (typingUsers.length > 0) {
+                    typingIndicator.textContent = `${typingUsers.join(', ')} ${typingUsers.length > 1 ? 'are' : 'is'} typing...`;
+                } else {
+                    typingIndicator.textContent = '';
+                }
+            });
+        }
 
         // Toggle emoji picker visibility
         emojiBtn.addEventListener('click', (e) => {
@@ -2054,11 +2358,11 @@
                 reader.readAsDataURL(file);
                 
                 // Also upload to storage for persistence across devices
-                if (currentUser) {
-                    const storageRef = storage.ref(`backgrounds/${currentUser.uid}/chat_bg`);
+                if (currentUser && chatPairId) {
+                    const storageRef = storage.ref(`backgrounds/${chatPairId}/chat_bg`);
                     await storageRef.put(file);
                     const downloadURL = await storageRef.getDownloadURL();
-                    await database.ref(`users/${currentUser.uid}/background`).set(downloadURL);
+                    await database.ref(`userPairs/${chatPairId}/background`).set(downloadURL);
                 }
             } catch (error) {
                 console.error('Error changing background:', error);
