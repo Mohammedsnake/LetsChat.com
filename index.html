@@ -946,6 +946,118 @@
             margin-top: 25px;
         }
 
+        /* Connection prompt styles */
+        .connection-prompt {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            padding: 20px;
+        }
+
+        .prompt-content {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        body.dark-mode .prompt-content {
+            background: rgba(30, 30, 46, 0.9);
+        }
+
+        .connection-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .connection-options button {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        #send-request-btn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        #enter-code-btn {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        /* Request modal styles */
+        .request-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .request-modal .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        body.dark-mode .request-modal .modal-content {
+            background: var(--dark-bg-color);
+        }
+
+        .request-message {
+            font-style: italic;
+            margin: 15px 0;
+            color: #666;
+        }
+
+        body.dark-mode .request-message {
+            color: #aaa;
+        }
+
+        .request-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .request-actions button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        #accept-request {
+            background: var(--success-color);
+            color: white;
+        }
+
+        #decline-request {
+            background: var(--error-color);
+            color: white;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 600px) {
             .container {
@@ -1023,7 +1135,7 @@
                 </div>
                 <div class="form-group">
                     <label for="partner-email">Partner's Email</label>
-                    <input type="email" id="partner-email" placeholder="Your partner's email (required)" autocomplete="email" required>
+                    <input type="email" id="partner-email" placeholder="Your partner's email (optional)">
                 </div>
                 <button id="register-btn" class="btn">Start Our Journey</button>
                 <button id="show-login" class="btn-secondary">Already have our space?</button>
@@ -1050,7 +1162,7 @@
             <div class="typing-indicator" id="typing-indicator"></div>
 
             <div class="message-input-container">
-                <input type="file" id="file-input" accept="image/*, .pdf, .doc, .docx, .mp3, .mp4">
+                <input type="file" id="file-input" accept="image/*">
                 <textarea id="message-input" placeholder="Whisper something sweet..." rows="1"></textarea>
                 <div class="input-actions">
                     <button class="input-btn" id="file-btn" title="Send a gift">
@@ -1106,7 +1218,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     
     <!-- Emoji Picker -->
     <script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
@@ -1131,7 +1242,6 @@
         
         const database = firebase.database();
         const auth = firebase.auth();
-        const storage = firebase.storage();
 
         // DOM elements
         const authContainer = document.getElementById('auth-container');
@@ -1176,6 +1286,7 @@
         const acceptPartnerBtn = document.getElementById('accept-partner-btn');
         const declinePartnerBtn = document.getElementById('decline-partner-btn');
 
+        // Initialize UI state
         chatContainer.classList.add('hidden');
         authContainer.classList.remove('hidden');
         
@@ -1318,6 +1429,143 @@
             }
         });
 
+        // Show connection prompt if no partner
+        function showPartnerConnectionPrompt() {
+            messagesContainer.innerHTML = `
+                <div class="connection-prompt">
+                    <div class="prompt-content">
+                        <h3>Connect with Your Partner</h3>
+                        <p>You need to connect with your partner to start chatting.</p>
+                        <div class="connection-options">
+                            <button id="send-request-btn">Send Connection Request</button>
+                            <button id="enter-code-btn">Enter Connection Code</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('send-request-btn').addEventListener('click', showRequestForm);
+            document.getElementById('enter-code-btn').addEventListener('click', showCodeEntryForm);
+        }
+
+        // Show request form
+        function showRequestForm() {
+            messagesContainer.innerHTML = `
+                <div class="connection-prompt">
+                    <div class="prompt-content">
+                        <h3>Send Connection Request</h3>
+                        <div class="form-group">
+                            <label for="partner-email-input">Partner's Email</label>
+                            <input type="email" id="partner-email-input" placeholder="Enter your partner's email">
+                        </div>
+                        <div class="form-group">
+                            <label for="request-message">Personal Message (Optional)</label>
+                            <textarea id="request-message" placeholder="Add a personal note"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button id="cancel-request" class="btn-secondary">Cancel</button>
+                            <button id="submit-request" class="btn">Send Request</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('cancel-request').addEventListener('click', showPartnerConnectionPrompt);
+            document.getElementById('submit-request').addEventListener('click', sendConnectionRequest);
+        }
+
+        // Send connection request
+        async function sendConnectionRequest() {
+            const partnerEmail = document.getElementById('partner-email-input').value.trim();
+            const message = document.getElementById('request-message').value.trim();
+            
+            if (!partnerEmail) {
+                showToast('Please enter your partner\'s email', 'error');
+                return;
+            }
+            
+            try {
+                // Check if partner exists
+                const usersRef = database.ref('users');
+                const snapshot = await usersRef.orderByChild('email').equalTo(partnerEmail).once('value');
+                
+                if (!snapshot.exists()) {
+                    showToast('No user found with that email', 'error');
+                    return;
+                }
+                
+                const partnerData = snapshot.val();
+                const partnerId = Object.keys(partnerData)[0];
+                
+                // Create connection request
+                await database.ref(`connectionRequests/${partnerId}/${currentUser.uid}`).set({
+                    status: 'pending',
+                    timestamp: Date.now(),
+                    message: message,
+                    fromEmail: currentUser.email,
+                    fromName: currentUser.name
+                });
+                
+                showToast('Connection request sent!', 'success');
+                showPartnerConnectionPrompt();
+            } catch (error) {
+                console.error('Error sending request:', error);
+                showToast('Failed to send request', 'error');
+            }
+        }
+
+        // Show code entry form
+        function showCodeEntryForm() {
+            messagesContainer.innerHTML = `
+                <div class="connection-prompt">
+                    <div class="prompt-content">
+                        <h3>Enter Connection Code</h3>
+                        <div class="form-group">
+                            <label for="connection-code">6-Digit Code</label>
+                            <input type="text" id="connection-code" placeholder="Enter code" maxlength="6">
+                        </div>
+                        <div class="form-actions">
+                            <button id="cancel-code" class="btn-secondary">Cancel</button>
+                            <button id="submit-code" class="btn">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('cancel-code').addEventListener('click', showPartnerConnectionPrompt);
+            document.getElementById('submit-code').addEventListener('click', validateConnectionCode);
+        }
+
+        // Validate connection code
+        async function validateConnectionCode() {
+            const code = document.getElementById('connection-code').value.trim();
+            
+            if (code.length !== 6) {
+                showToast('Please enter a 6-digit code', 'error');
+                return;
+            }
+            
+            try {
+                // In a real app, you would verify this code against your database
+                // This is a simplified version that just checks if the code is "123456"
+                if (code !== "123456") {
+                    showToast('Invalid connection code', 'error');
+                    return;
+                }
+                
+                // For demo purposes, we'll just show a success message
+                showToast('Connection successful!', 'success');
+                showPartnerConnectionPrompt();
+                
+                // In a real app, you would call createPartnerConnection() here
+                // with the actual partner ID from the database
+            } catch (error) {
+                console.error('Error validating code:', error);
+                showToast('Connection failed', 'error');
+            }
+        }
+
+        // Load partner info
         async function loadPartnerInfo() {
             try {
                 const userRef = database.ref(`users/${currentUser.uid}`);
@@ -1329,6 +1577,8 @@
                     const usersRef = database.ref('users');
                     const usersSnapshot = await usersRef.once('value');
                     const users = usersSnapshot.val() || {};
+                    
+                    let partnerFound = false;
                     
                     for (const [uid, partnerData] of Object.entries(users)) {
                         if (partnerData.email === userData.partner) {
@@ -1348,18 +1598,16 @@
                                 localStorage.setItem('anniversaryDate', anniversaryDate.toISOString());
                             }
                             
+                            partnerFound = true;
                             break;
                         }
                     }
                     
-                    if (!partnerUser) {
-                        showToast('Partner not found. They may not have registered yet.', 'error');
-                    } else {
-                        // Initialize typing listener with the new pair
-                        setupTypingListener();
+                    if (!partnerFound) {
+                        showPartnerConnectionPrompt();
                     }
                 } else {
-                    showToast('No partner linked to your account', 'error');
+                    showPartnerConnectionPrompt();
                 }
             } catch (error) {
                 console.error('Error loading partner info:', error);
@@ -1557,7 +1805,7 @@
             const password = registerPassword.value.trim();
             const partner = partnerEmail.value.trim();
             
-            if (!name || !email || !password || !partner) {
+            if (!name || !email || !password) {
                 showToast('Please fill all required fields', 'error');
                 return;
             }
@@ -1606,7 +1854,7 @@
                     
                     if (partnerExists) {
                         // Create partner request
-                        await database.ref(`partnerRequests/${partnerUid}`).set({
+                        await database.ref(`partnerRequests/${partnerUid}`).push({
                             fromUid: userCredential.user.uid,
                             fromEmail: email,
                             fromName: name,
@@ -1724,7 +1972,7 @@
         // Load messages with date separators
         function loadMessages() {
             if (!chatPairId) {
-                messagesContainer.innerHTML = '<div class="anniversary-display">Connect with your partner to start chatting</div>';
+                showPartnerConnectionPrompt();
                 return;
             }
             
@@ -1860,22 +2108,6 @@
                 });
                 
                 contentElement.appendChild(img);
-            } else if (msg.type === 'file') {
-                const fileLink = document.createElement('a');
-                fileLink.href = msg.data;
-                fileLink.target = '_blank';
-                fileLink.rel = 'noopener noreferrer';
-                fileLink.classList.add('attachment-file');
-                
-                const icon = document.createElement('i');
-                icon.className = getFileIcon(msg.fileType);
-                
-                const fileName = document.createElement('span');
-                fileName.textContent = msg.fileName;
-                
-                fileLink.appendChild(icon);
-                fileLink.appendChild(fileName);
-                contentElement.appendChild(fileLink);
             }
             
             // Message actions (edit/delete)
@@ -2062,32 +2294,6 @@
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        // Get file icon based on type
-        function getFileIcon(fileType) {
-            if (!fileType) return 'fas fa-file';
-            
-            const type = fileType.split('/')[0];
-            const extension = fileType.split('/')[1];
-            
-            switch (type) {
-                case 'image':
-                    return 'fas fa-image';
-                case 'video':
-                    return 'fas fa-video';
-                case 'audio':
-                    return 'fas fa-music';
-                case 'application':
-                    if (extension.includes('pdf')) return 'fas fa-file-pdf';
-                    if (extension.includes('word') || extension.includes('document')) return 'fas fa-file-word';
-                    if (extension.includes('excel') || extension.includes('sheet')) return 'fas fa-file-excel';
-                    if (extension.includes('powerpoint') || extension.includes('presentation')) return 'fas fa-file-powerpoint';
-                    if (extension.includes('zip') || extension.includes('compressed')) return 'fas fa-file-archive';
-                    return 'fas fa-file';
-                default:
-                    return 'fas fa-file';
-            }
-        }
-
         // Send message
         async function sendMessage() {
             const messageText = messageInput.value.trim();
@@ -2128,15 +2334,15 @@
             const file = e.target.files[0];
             if (!file || !currentUser || !chatPairId) return;
 
-            // Limit to image files
+            // Validate file type
             if (!file.type.startsWith('image/')) {
                 showToast('Please select an image file', 'error');
                 return;
             }
 
-            // Limit file size (5MB limit)
-            if (file.size > 5 * 1024 * 1024) {
-                showToast('Image must be smaller than 5MB', 'error');
+            // Limit file size to 1MB (Base64 adds ~33% overhead)
+            if (file.size > 1000000) {
+                showToast('Image must be smaller than 1MB', 'error');
                 return;
             }
 
@@ -2144,7 +2350,6 @@
             fileBtn.innerHTML = '<div class="loading"></div>';
 
             try {
-                // Convert image to Base64 for immediate display
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     const base64String = event.target.result;
@@ -2157,50 +2362,23 @@
                         type: 'image',
                         fileName: file.name,
                         fileType: file.type,
-                        data: base64String,
+                        data: base64String, // Store Base64 directly
                         size: file.size
                     };
 
-                    // Upload to Firebase Storage for permanent storage
-                    const storageRef = storage.ref(`images/${chatPairId}/${timestamp}_${file.name}`);
-                    const uploadTask = storageRef.putString(base64String, 'data_url');
-
-                    uploadTask.on('state_changed',
-                        (snapshot) => {
-                            // Progress monitoring could be added here
-                        },
-                        (error) => {
-                            console.error('Upload error:', error);
-                            showToast('Error uploading image', 'error');
-                        },
-                        async () => {
-                            // Get download URL after upload completes
-                            const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                            
-                            // Update message with permanent URL
-                            await database.ref(`userPairs/${chatPairId}/messages`).push({
-                                ...message,
-                                data: downloadURL
-                            });
-                            
-                            showToast('Image sent successfully', 'success');
-                        }
-                    );
-
-                    // Immediately show the image using Base64 while uploading
                     await database.ref(`userPairs/${chatPairId}/messages`).push(message);
                     fileInput.value = '';
                     scrollToBottom();
+                    showToast('Image sent!', 'success');
                 };
                 reader.onerror = () => {
-                    showToast('Error reading file', 'error');
-                    fileBtn.disabled = false;
-                    fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
+                    throw new Error('File reading failed');
                 };
                 reader.readAsDataURL(file);
             } catch (error) {
                 console.error('Error sending image:', error);
                 showToast('Error sending image', 'error');
+            } finally {
                 fileBtn.disabled = false;
                 fileBtn.innerHTML = '<i class="fas fa-gift"></i>';
             }
@@ -2356,14 +2534,6 @@
                     showToast('Background updated!', 'success');
                 };
                 reader.readAsDataURL(file);
-                
-                // Also upload to storage for persistence across devices
-                if (currentUser && chatPairId) {
-                    const storageRef = storage.ref(`backgrounds/${chatPairId}/chat_bg`);
-                    await storageRef.put(file);
-                    const downloadURL = await storageRef.getDownloadURL();
-                    await database.ref(`userPairs/${chatPairId}/background`).set(downloadURL);
-                }
             } catch (error) {
                 console.error('Error changing background:', error);
                 showToast('Error updating background', 'error');
