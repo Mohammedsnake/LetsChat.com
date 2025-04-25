@@ -1058,6 +1058,33 @@
             color: white;
         }
 
+        /* Connection code styles */
+        .code-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .code-digit {
+            width: 40px;
+            height: 50px;
+            font-size: 24px;
+            text-align: center;
+            border: 1px solid var(--primary-color);
+            border-radius: 8px;
+        }
+
+        .code-instructions {
+            font-size: 14px;
+            color: #666;
+            margin-top: 15px;
+        }
+
+        body.dark-mode .code-instructions {
+            color: #aaa;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 600px) {
             .container {
@@ -1088,6 +1115,12 @@
             emoji-picker {
                 width: 90%;
                 right: 5%;
+            }
+            
+            .code-digit {
+                width: 30px;
+                height: 40px;
+                font-size: 20px;
             }
         }
     </style>
@@ -1208,6 +1241,23 @@
         </div>
     </div>
 
+    <!-- Connection Code Modal -->
+    <div class="modal-overlay" id="connection-code-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Your Connection Code</h3>
+                <button class="modal-close" id="code-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="code-container" id="connection-code-display"></div>
+                <p class="code-instructions">Share this 6-digit code with your partner to connect. It will expire in 24 hours.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="copy-code-btn">Copy Code</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Floating hearts container -->
     <div class="floating-hearts" id="floating-hearts"></div>
 
@@ -1285,6 +1335,10 @@
         const partnerRequestMessage = document.getElementById('partner-request-message');
         const acceptPartnerBtn = document.getElementById('accept-partner-btn');
         const declinePartnerBtn = document.getElementById('decline-partner-btn');
+        const connectionCodeModal = document.getElementById('connection-code-modal');
+        const connectionCodeDisplay = document.getElementById('connection-code-display');
+        const copyCodeBtn = document.getElementById('copy-code-btn');
+        const codeModalClose = document.getElementById('code-modal-close');
 
         // Initialize UI state
         chatContainer.classList.add('hidden');
@@ -1303,6 +1357,7 @@
         let chatPairId = null;
         let partnerRequestListener = null;
         let autoDeclineTimer = null;
+        let currentConnectionCode = null;
 
         // Initialize the app
         initApp();
@@ -1405,6 +1460,7 @@
                 loadMessages();
                 setupPresenceListener();
                 setupPartnerRequestListener();
+                setupTypingListener();
                 
                 // Create floating hearts occasionally
                 setInterval(createFloatingHeart, 3000);
@@ -1498,12 +1554,13 @@
                 const partnerId = Object.keys(partnerData)[0];
                 
                 // Create connection request
-                await database.ref(`connectionRequests/${partnerId}/${currentUser.uid}`).set({
-                    status: 'pending',
-                    timestamp: Date.now(),
-                    message: message,
+                await database.ref(`partnerRequests/${partnerId}`).push({
+                    fromUid: currentUser.uid,
                     fromEmail: currentUser.email,
-                    fromName: currentUser.name
+                    fromName: currentUser.name,
+                    message: message,
+                    status: 'pending',
+                    timestamp: Date.now()
                 });
                 
                 showToast('Connection request sent!', 'success');
@@ -1514,6 +1571,11 @@
             }
         }
 
+        // Generate a random 6-digit connection code
+        function generateConnectionCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
         // Show code entry form
         function showCodeEntryForm() {
             messagesContainer.innerHTML = `
@@ -1522,7 +1584,15 @@
                         <h3>Enter Connection Code</h3>
                         <div class="form-group">
                             <label for="connection-code">6-Digit Code</label>
-                            <input type="text" id="connection-code" placeholder="Enter code" maxlength="6">
+                            <div class="code-container">
+                                <input type="text" id="code-digit-1" class="code-digit" maxlength="1" data-index="0">
+                                <input type="text" id="code-digit-2" class="code-digit" maxlength="1" data-index="1">
+                                <input type="text" id="code-digit-3" class="code-digit" maxlength="1" data-index="2">
+                                <input type="text" id="code-digit-4" class="code-digit" maxlength="1" data-index="3">
+                                <input type="text" id="code-digit-5" class="code-digit" maxlength="1" data-index="4">
+                                <input type="text" id="code-digit-6" class="code-digit" maxlength="1" data-index="5">
+                            </div>
+                            <p class="code-instructions">Enter the 6-digit code your partner shared with you</p>
                         </div>
                         <div class="form-actions">
                             <button id="cancel-code" class="btn-secondary">Cancel</button>
@@ -1532,38 +1602,142 @@
                 </div>
             `;
             
+            // Set up code input behavior
+            const codeInputs = document.querySelectorAll('.code-digit');
+            codeInputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => {
+                    if (e.target.value.length === 1) {
+                        if (index < 5) {
+                            codeInputs[index + 1].focus();
+                        }
+                    }
+                });
+                
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && e.target.value.length === 0 && index > 0) {
+                        codeInputs[index - 1].focus();
+                    }
+                });
+            });
+            
             document.getElementById('cancel-code').addEventListener('click', showPartnerConnectionPrompt);
             document.getElementById('submit-code').addEventListener('click', validateConnectionCode);
         }
 
         // Validate connection code
         async function validateConnectionCode() {
-            const code = document.getElementById('connection-code').value.trim();
+            const codeDigits = document.querySelectorAll('.code-digit');
+            let code = '';
+            codeDigits.forEach(digit => {
+                code += digit.value;
+            });
             
             if (code.length !== 6) {
-                showToast('Please enter a 6-digit code', 'error');
+                showToast('Please enter a complete 6-digit code', 'error');
                 return;
             }
             
             try {
-                // In a real app, you would verify this code against your database
-                // This is a simplified version that just checks if the code is "123456"
-                if (code !== "123456") {
+                // Check if this code exists in the database
+                const codesRef = database.ref('connectionCodes');
+                const snapshot = await codesRef.orderByChild('code').equalTo(code).once('value');
+                
+                if (!snapshot.exists()) {
                     showToast('Invalid connection code', 'error');
                     return;
                 }
                 
-                // For demo purposes, we'll just show a success message
-                showToast('Connection successful!', 'success');
-                showPartnerConnectionPrompt();
+                // Get the code data
+                const codeData = snapshot.val();
+                const codeId = Object.keys(codeData)[0];
+                const codeInfo = codeData[codeId];
                 
-                // In a real app, you would call createPartnerConnection() here
-                // with the actual partner ID from the database
+                // Check if code is expired (24 hours)
+                const now = Date.now();
+                if (now - codeInfo.timestamp > 24 * 60 * 60 * 1000) {
+                    showToast('This code has expired', 'error');
+                    await database.ref(`connectionCodes/${codeId}`).remove();
+                    return;
+                }
+                
+                // Check if code is for current user (shouldn't happen)
+                if (codeInfo.userId === currentUser.uid) {
+                    showToast('You cannot use your own connection code', 'error');
+                    return;
+                }
+                
+                // Get the partner's info
+                const partnerSnapshot = await database.ref(`users/${codeInfo.userId}`).once('value');
+                const partnerData = partnerSnapshot.val();
+                
+                if (!partnerData) {
+                    showToast('Partner not found', 'error');
+                    return;
+                }
+                
+                // Create the connection between users
+                await createPartnerConnection(
+                    codeInfo.userId,
+                    partnerData.email,
+                    partnerData.name
+                );
+                
+                // Remove the used code
+                await database.ref(`connectionCodes/${codeId}`).remove();
+                
+                showToast('Successfully connected with your partner!', 'success');
             } catch (error) {
                 console.error('Error validating code:', error);
-                showToast('Connection failed', 'error');
+                showToast('Error validating connection code', 'error');
             }
         }
+
+        // Generate and display a connection code
+        async function generateAndDisplayConnectionCode() {
+            try {
+                // Generate a 6-digit code
+                currentConnectionCode = generateConnectionCode();
+                
+                // Save to database with expiration (24 hours)
+                const codeRef = database.ref('connectionCodes').push();
+                await codeRef.set({
+                    code: currentConnectionCode,
+                    userId: currentUser.uid,
+                    timestamp: Date.now()
+                });
+                
+                // Display the code in a modal
+                connectionCodeDisplay.innerHTML = '';
+                for (let i = 0; i < currentConnectionCode.length; i++) {
+                    const digit = document.createElement('div');
+                    digit.className = 'code-digit';
+                    digit.textContent = currentConnectionCode[i];
+                    connectionCodeDisplay.appendChild(digit);
+                }
+                
+                connectionCodeModal.classList.add('active');
+            } catch (error) {
+                console.error('Error generating connection code:', error);
+                showToast('Error generating connection code', 'error');
+            }
+        }
+
+        // Copy connection code to clipboard
+        copyCodeBtn.addEventListener('click', () => {
+            if (!currentConnectionCode) return;
+            
+            navigator.clipboard.writeText(currentConnectionCode).then(() => {
+                showToast('Code copied to clipboard!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy code:', err);
+                showToast('Failed to copy code', 'error');
+            });
+        });
+
+        // Close connection code modal
+        codeModalClose.addEventListener('click', () => {
+            connectionCodeModal.classList.remove('active');
+        });
 
         // Load partner info
         async function loadPartnerInfo() {
@@ -1666,15 +1840,9 @@
             partnerRequestModal.classList.add('active');
         }
 
-        // Handle partner request acceptance
-        async function acceptPartnerRequest(partnerUid, partnerEmail, partnerName, requestId) {
+        // Create partner connection
+        async function createPartnerConnection(partnerUid, partnerEmail, partnerName) {
             try {
-                // Clear auto-decline timer
-                if (autoDeclineTimer) {
-                    clearTimeout(autoDeclineTimer);
-                    autoDeclineTimer = null;
-                }
-                
                 // Generate a unique pair ID (alphabetically sorted to ensure consistency)
                 const pairId = [currentUser.uid, partnerUid].sort().join('_');
                 
@@ -1687,11 +1855,6 @@
                 const now = new Date();
                 updates[`users/${currentUser.uid}/anniversaryDate`] = now.toISOString();
                 updates[`users/${partnerUid}/anniversaryDate`] = now.toISOString();
-                
-                // Update the partner request status
-                updates[`partnerRequests/${currentUser.uid}/${requestId}/status`] = 'accepted';
-                updates[`partnerRequests/${currentUser.uid}/${requestId}/seen`] = true;
-                updates[`partnerRequests/${currentUser.uid}/${requestId}/acceptedAt`] = Date.now();
                 
                 // Create the chat pair with users list
                 updates[`userPairs/${pairId}/users/${currentUser.uid}`] = true;
@@ -1719,11 +1882,35 @@
                 anniversaryDate = now;
                 localStorage.setItem('anniversaryDate', now.toISOString());
                 
-                // Hide modal
-                partnerRequestModal.classList.remove('active');
-                
                 // Reload messages with the new pair
                 loadMessages();
+            } catch (error) {
+                console.error('Error creating partner connection:', error);
+                throw error;
+            }
+        }
+
+        // Handle partner request acceptance
+        async function acceptPartnerRequest(partnerUid, partnerEmail, partnerName, requestId) {
+            try {
+                // Clear auto-decline timer
+                if (autoDeclineTimer) {
+                    clearTimeout(autoDeclineTimer);
+                    autoDeclineTimer = null;
+                }
+                
+                // Update the partner request status
+                await database.ref(`partnerRequests/${currentUser.uid}/${requestId}`).update({
+                    status: 'accepted',
+                    seen: true,
+                    acceptedAt: Date.now()
+                });
+                
+                // Create the connection
+                await createPartnerConnection(partnerUid, partnerEmail, partnerName);
+                
+                // Hide modal
+                partnerRequestModal.classList.remove('active');
                 
                 showToast(`You're now connected with ${partnerName}!`, 'success');
             } catch (error) {
